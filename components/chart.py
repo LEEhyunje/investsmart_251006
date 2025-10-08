@@ -267,38 +267,27 @@ def render_stock_chart(
     주식 차트 렌더링 - 시간축 지원 및 캐시된 데이터 사용으로 최적화
     """
     try:
-        # 선택된 지표 그룹에 따라 시간축 결정
-        timeframe = "daily"  # 기본값
-        if settings and 'selected_indicator_group' in settings:
-            indicator_group = settings['selected_indicator_group']
-            if indicator_group == "Short-term Analysis(daily chart)":
-                timeframe = "daily"
-            elif indicator_group == "Mid-term Analysis(weekly chart)":
-                timeframe = "weekly"
-            elif indicator_group == "Long-term Analysis(monthly chart)":
-                timeframe = "monthly"
-        
-        # 단계별 진행 표시 (스피너 → 진행바) - 최적화된 로딩
-        progress = st.progress(0, text="데이터 준비 중...")
-        status = st.empty()
+        with st.spinner("📈 차트를 준비하고 있습니다... 잠시만 기다려주세요."):
+            # 선택된 지표 그룹에 따라 시간축 결정
+            timeframe = "daily"  # 기본값
+            if settings and 'selected_indicator_group' in settings:
+                indicator_group = settings['selected_indicator_group']
+                if "Short-term" in indicator_group:
+                    timeframe = "daily"
+                elif "Mid-term" in indicator_group:
+                    timeframe = "weekly"
+                elif "Long-term" in indicator_group:
+                    timeframe = "monthly"
 
-        # 1) 데이터 로드 (캐시 최적화)
-        status.info("1/3 데이터 불러오는 중...")
-        with st.spinner("데이터 로딩 중..."):
+            # 1) 데이터 로드 및 리샘플링
             signals_data = get_cached_signals_data(symbol, period)
-        progress.progress(33, text="데이터 리샘플 중...")
+            signals_data = resample_data_to_timeframe(signals_data, timeframe)
 
-        # 2) 리샘플
-        signals_data = resample_data_to_timeframe(signals_data, timeframe)
-        progress.progress(66, text="차트 준비 중...")
-
-        # 3) 유효성 검사 및 헤더 표시
-        if signals_data.get('error') or not signals_data.get('dates'):
-            progress.empty()
-            status.empty()
-            st.warning(f"⚠️ {symbol} 종목은 아직 지원하지 않는 종목입니다.")
-            st.info("현재 지원하는 종목: 코스피, 나스닥, TLT, USD/KRW 환율")
-            return
+            # 2) 유효성 검사
+            if signals_data.get('error') or not signals_data.get('dates'):
+                st.warning(f"⚠️ {symbol} 종목은 아직 지원하지 않는 종목입니다.")
+                st.info("현재 지원하는 종목: 코스피, 나스닥, TLT, USD/KRW 환율")
+                return
 
         timeframe_names = {
             "daily": "Daily Chart",
@@ -308,17 +297,13 @@ def render_stock_chart(
         timeframe_display = timeframe_names.get(timeframe, "Daily Chart")
 
         data_count = len(signals_data.get('dates', []))
-        st.markdown(f"### 📈 {signals_data.get('symbol', symbol)} - {timeframe_display} ({data_count} candles)")
-        progress.progress(100, text="완료")
-        status.empty()
-        progress.empty()
-        
+        st.markdown(f"######### 📈 {signals_data.get('symbol', symbol)} - {timeframe_display} ")        
+
         # 차트 생성 (최적화된 렌더링)
-        with st.spinner("차트 렌더링 중..."):
-            _create_candlestick_chart(
-                signals_data, 
-                settings
-            )
+        _create_candlestick_chart(
+            signals_data, 
+            settings
+        )
         
     except Exception as e:
         logger.error(f"차트 렌더링 실패: {symbol}, {e}")
@@ -614,7 +599,6 @@ def _create_candlestick_chart(
                     #             )
                     #         )
         
-        
         # FCV 배경 색칠 (단기중기장기 무관하게 배경에 색칠) - FCV Zones 체크박스 상태 확인
         fcv_has_green = False
         fcv_has_red = False
@@ -652,7 +636,7 @@ def _create_candlestick_chart(
         fig.update_layout(
             title="",  # 제목 제거
             xaxis_rangeslider_visible=False,
-            height=600,  # 차트 높이 확대
+            height=450,  # 차트 높이 확대
             width=None,  # 전체 화면 사용
             showlegend=False,  # 기본 범례 비활성화 (동적 범례 사용)
             template="plotly_white",
@@ -661,7 +645,7 @@ def _create_candlestick_chart(
             plot_bgcolor='#dee2e6',  # 더욱 어두운 회색 배경
             paper_bgcolor='#dee2e6',  # 더욱 어두운 회색 배경
             # 모바일 가로 스크롤 활성화
-            dragmode='pan',  # 가로 드래그 활성화
+            dragmode='pan',
             hovermode=False,  # 호버 툴팁 완전 비활성화
             # 범례 제거 (Streamlit으로 별도 표시)
             annotations=[],
@@ -675,18 +659,20 @@ def _create_candlestick_chart(
                 spikethickness=1,
                 # 가로 스크롤 범위 설정
                 rangeslider=dict(visible=False),
-                autorange=True,  # 자동 범위 조정 활성화
+                autorange=True,
+                spikedash='dot',
                 # 눈금 글자 설정
                 tickfont=dict(size=11, color='black'),
                 title=dict(font=dict(size=12, color='black'))
             ),
             yaxis=dict(
-                fixedrange=True,  # Y축은 고정 (세로 스크롤 방지)
+                fixedrange=False,  # Y축 스크롤 허용 (자동 범위 조정)
                 showspikes=False,  # 스파이크 제거
                 spikemode='across',
                 spikecolor='grey',
                 spikesnap='cursor',
                 spikethickness=1,
+                spikedash='dot',
                 # 눈금 글자 설정
                 tickfont=dict(size=11, color='black'),
                 title=dict(font=dict(size=12, color='black'))
@@ -696,20 +682,24 @@ def _create_candlestick_chart(
         # Y축 설정 (제목 제거로 공간 확보 + 인터랙티브 제한)
         fig.update_yaxes(
             title_text="", 
-            fixedrange=True,  # 주가 축 고정
+            fixedrange=True,  # Y축 패닝(드래그 이동) 방지
             showspikes=False
         )
+
+        # X축에만 줌/팬이 가능하도록 명시적으로 설정
+        fig.update_xaxes(constrain='domain')
+        fig.update_yaxes(constrain='domain')
         
         # 차트 표시 (최적화된 설정) - 전체 화면 사용
         st.plotly_chart(
             fig, 
             use_container_width=True,  # 전체 화면 사용
             config={
-                'displayModeBar': False,  # 툴바 숨김
+                'displayModeBar': True,  # 툴바 임시 표시 (줌/팬 버튼 확인용)
                 'scrollZoom': True,  # 스크롤 줌 활성화
                 'doubleClick': 'reset+autosize',  # 더블클릭으로 리셋
                 'staticPlot': False,  # 정적 플롯 비활성화 (인터랙션 유지)
-                'responsive': True,  # 반응형 활성화
+                'responsive': False,  # 반응형 비활성화 (모바일 줌 충돌 방지)
                 'autosizable': True,  # 자동 크기 조정
                 'fillFrame': False,  # 프레임 채우기 비활성화
                 'frameMargins': 0,  # 프레임 마진 제거
@@ -727,9 +717,9 @@ def _create_candlestick_chart(
                     'titleText': False
                 },
                 'modeBarButtonsToRemove': [
-                    'pan2d', 'lasso2d', 'select2d', 'autoScale2d',
-                    'resetScale2d', 'hoverClosestCartesian', 'hoverCompareCartesian',
-                    'toggleSpikelines', 'zoom2d', 'zoomIn2d', 'zoomOut2d'
+                    'lasso2d', 'select2d', 'autoScale2d',
+                    'hoverClosestCartesian', 'hoverCompareCartesian',
+                    'toggleSpikelines'
                 ],
                 'toImageButtonOptions': {
                     'format': 'png',
@@ -762,12 +752,12 @@ def _create_candlestick_chart(
             
             if st.session_state.get('show_local_dip', True):
                 with cols[col_idx]:
-                    st.markdown("**<span style='color: #32CD32; border: 2px solid #004000; border-radius: 50%; padding: 0px; background-color: rgba(50, 205, 50, 0.1); font-size: 0.6em;'>●</span> Local Dip**", unsafe_allow_html=True)
+                    st.markdown("**<span style='color: #32CD32; font-size: 1.2em;'>●</span> Local Dip**", unsafe_allow_html=True)
                 col_idx += 1
             
             if st.session_state.get('show_rebound_potential', True):
                 with cols[col_idx]:
-                    st.markdown("**<span style='color: #FF4444; border: 2px solid #660000; border-radius: 50%; padding: 0px; background-color: rgba(255, 68, 68, 0.1); font-size: 0.7em;'>●</span> Rebound Potential**", unsafe_allow_html=True)
+                    st.markdown("**<span style='color: #FF4444; font-size: 1.8em;'>●</span> Rebound Potential**", unsafe_allow_html=True)
                 col_idx += 1
             
             if fcv_has_green and st.session_state.get('show_fcv_zones', True):
@@ -786,17 +776,17 @@ def _create_candlestick_chart(
         with col1:
             st.markdown("""
             **🔍 Signal Meanings**
-            - **● Local Dip**: Short-term buy opportunities (green circles)
-            - **● Rebound Potential**: Reversal signals indicating rebound chances (red circles)
+            - **<span style='color: #32CD32; font-size: 1.2em;'>●</span> Local Dip**: Short-term buy opportunities (green circles)
+            - **<span style='color: #FF4444; font-size: 1.8em;'>●</span> Rebound Potential**: Reversal signals indicating rebound chances (red circles)
             - **🚀 Rebound Alert**: Strong buy signals with arrow pointing to exact location
-            """)
+            """, unsafe_allow_html=True)
         with col2:
             st.markdown("""
             **🎯 FCV Background Colors**
-            - **🟩 Value Zone!!!**: FCV ≥ 0.5, Strong buy signal
-            - **🟥 Risk Zone!!!**: FCV ≤ -0.5, Strong sell signal
+            - **<span style='background-color: #90EE90; padding: 2px 6px; border-radius: 4px;'>Value Zone</span>**: FCV ≥ 0.5, Strong buy signal
+            - **<span style='background-color: #FFB6C1; padding: 2px 6px; border-radius: 4px;'>Risk Zone</span>**: FCV ≤ -0.5, Strong sell signal
             - **⚪ Neutral Zone**: FCV -0.5 ~ 0.5, Wait and see recommended
-            """)
+            """, unsafe_allow_html=True)
         
         # 시그널 표시/숨김 컨트롤
         st.markdown("---")

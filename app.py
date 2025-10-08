@@ -1,6 +1,7 @@
 """
 Streamlit Main App - 원본 코드와 동일한 단순한 차트 화면 (탭 없음)
 """
+import streamlit.components.v1 as components
 import streamlit as st
 import sys
 import os
@@ -34,44 +35,46 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 def render_disclaimer():
-    """면책조항 표시 - 처음 체크하면 아예 없어짐"""
+    """면책조항 표시 - st.dialog를 사용하여 모달 팝업으로 변경"""
     if 'disclaimer_agreed' not in st.session_state:
         st.session_state.disclaimer_agreed = False
     
     if not st.session_state.disclaimer_agreed:
-        with st.expander("⚠️ Investment Disclaimer", expanded=True):
+        @st.dialog("⚠️ Investment Disclaimer", dismissible=False)
+        def show_disclaimer_dialog():
             st.markdown("""
-            **📋 Service Nature**
-            - This service is designed for **investment education and information provision**
-            - It is a **learning platform** providing technical analysis tools and market information
+            <div style='line-height: 1.5; font-size: 15px;'>
+            <b>📋 Service Nature</b><br>
+            - This service is for <b>investment education and information provision</b>.<br>
+            - It is a learning platform providing technical analysis tools.
+            <br><br>
+            <b>⚠️ Investment Risk Warning</b><br>
+            - <b>All investments carry the risk of principal loss</b>.<br>
+            - Past performance does not guarantee future returns.<br>
+            - The provided information is not investment advice.
+            <br><br>
+            <b>📊 Limitations of Provided Information</b><br>
+            - Technical indicators and signals are for reference only.<br>
+            - All investment decisions are <b>your own judgment and responsibility</b>.
+            <br><br>
+            <b>🔒 Disclaimer</b><br>
+            - We are not responsible for investment losses from using this service.<br>
+            - We recommend thorough review and expert consultation before investing.
+            </div>
+            """, unsafe_allow_html=True)
             
-            **⚠️ Investment Risk Warning**
-            - **All investments carry the risk of principal loss**
-            - Past performance does not guarantee future returns
-            - The provided information is not investment advice
-            
-            **📊 Limitations of Provided Information**
-            - Technical indicators and signals are for reference only
-            - Accuracy may vary depending on market conditions
-            - All investment decisions are **your own judgment and responsibility**
-            
-            **🔒 Disclaimer**
-            - We are not responsible for investment losses from using this service
-            - We do not guarantee the accuracy of provided information
-            - We recommend thorough review and expert consultation before investing
-            """)
-            
-            agreed = st.checkbox(
-                "I fully understand the above content and acknowledge the investment risks", 
-                key="disclaimer_checkbox"
-            )
-            
-            if agreed:
+            st.write("") # 버튼 위에 여백 추가
+
+            # 버튼을 아래에 배치
+            if st.button("I understand and agree to the disclaimer", type="primary", use_container_width=True):
                 st.session_state.disclaimer_agreed = True
                 st.rerun()
-            else:
-                st.warning("⚠️ You must agree to the risk disclosure to use this service.")
+            
+            if st.button("Disagree", use_container_width=True):
+                st.warning("You must agree to the disclaimer to use the service.")
                 st.stop()
+
+        show_disclaimer_dialog()
 
 def get_json_client() -> InvestSmartJSONClient:
     """JSON 클라이언트 인스턴스 반환"""
@@ -182,27 +185,19 @@ def main():
 
 def render_step1_symbol_selection():
     """1단계: 종목 선택"""
-    st.title("📈 InvestSmart - Stock Analysis")
-    st.markdown("### Step 1: Which stock (or index) are you curious about?")
+  
+    st.markdown("### Step 1: Which stock(or index) are you curious about?")
     
     # 종목 선택
     symbol = render_simple_stock_selector()
-    
-    if symbol:
-        st.session_state.selected_symbol = symbol
-        st.success(f"✅ Selected Stock: **{symbol}**")
-        
-        col1, col2, col3 = st.columns([1, 1, 1])
-        with col2:
-            if st.button("Next Step", type="primary", use_container_width=True):
-                st.session_state.step = 2
-                st.rerun()
+
+
 
 
 def render_step2_indicator_selection():
     """2단계: 지표 그룹 선택"""
-    st.title("📈 InvestSmart - Indicator Analysis")
-    st.markdown("### Step 2: Which indicators are you curious about?")
+ 
+    st.markdown("### Step 2: How long do you prefer to invest?")
     
     # 이전 단계로 돌아가기
     if st.button("← Previous Step"):
@@ -213,66 +208,79 @@ def render_step2_indicator_selection():
     
     # 지표 그룹 선택
     indicator_groups = {
-        "Short-term Analysis(daily chart)": {
-            "description": "Short-term trading indicators",
-            "signals": ["short_signal_v2", "macd_signal"],
-            "color": "#00FFFF"
+        "Long-term Analysis (Monthly)": {
+            "description": "Long-term investment indicators",
+            "signals": ["long_signal", "combined_signal_v1"],
+            "color": "#4169E1"
         },
-        "Mid-term Analysis(weekly chart)": {
+        "Mid-term Analysis (Weekly)": {
             "description": "Mid-term investment indicators", 
             "signals": ["short_signal_v1", "momentum_color_signal"],
             "color": "#32CD32"
         },
-        "Long-term Analysis(monthly chart)": {
-            "description": "Long-term investment indicators",
-            "signals": ["long_signal", "combined_signal_v1"],
-            "color": "#4169E1"
+        "Short-term Analysis (Daily)": {
+            "description": "Short-term trading indicators",
+            "signals": ["short_signal_v2", "macd_signal"],
+            "color": "#00FFFF"
         }
     }
     
     # 지표 그룹 선택 버튼들
     cols = st.columns(3)
     for i, (group_name, group_info) in enumerate(indicator_groups.items()):
+        # 버튼에 표시할 텍스트를 동적으로 생성
+        button_text = ""
+        if "Long-term" in group_name:
+            button_text = "Long-term (few years)"
+        elif "Mid-term" in group_name:
+            button_text = "Mid-term (few months)"
+        elif "Short-term" in group_name:
+            button_text = "Short-term (few weeks)"
+
         with cols[i]:
-            # 각 그룹별 상세 설명 추가
-            if group_name == "Short-term Analysis(daily chart)":
-                st.markdown("### 🔵 Short-term")
-                st.markdown("**Investment Period:** ██░░░░ (few weeks)")
-                st.markdown("**Success Rate:** ████░░")
-                st.markdown("""
-                **Analysis:** precise timing  
-                **Purpose:** Quick volatility capture and short-term trading timing  
-                **Use Case:** Fast entry/exit signals during rapid rise/fall periods
-                """)
-            elif group_name == "Mid-term Analysis(weekly chart)":
-                st.markdown("### 🟡 Mid-term")
-                st.markdown("**Investment Period:** ████░░ (few months)")
-                st.markdown("**Success Rate:** █████░")
-                st.markdown("""
-                **Analysis:** Trend Analysis  
-                **Purpose:** Trend confirmation and mid-term investment direction  
-                **Use Case:** Position entry after confirming weekly uptrend reversal
-                """)
-            elif group_name == "Long-term Analysis(monthly chart)":
-                st.markdown("### 🔴 Long-term")
-                st.markdown("**Investment Period:** ██████ (few years)")
-                st.markdown("**Success Rate:** █████░")
-                st.markdown("""
-                **Analysis:** macro trends  
-                **Purpose:** Value investing and portfolio strategy development  
-                **Use Case:** Long-term investment, asset allocation, risk management
-                """)
-            
-            if st.button(
-                f"Select {group_name}", 
-                key=f"group_{group_name}",
-                use_container_width=True,
-                type="primary"
-            ):
-                st.session_state.selected_indicator_group = group_name
-                st.session_state.selected_signals = group_info['signals']
-                st.session_state.step = 3
-                st.rerun()
+            # 각 그룹을 container로 묶고 테두리 추가
+            with st.container(border=True):
+                # 그룹 제목과 선택 버튼을 먼저 표시
+                if st.button(
+                    button_text,
+                    key=f"group_{group_name}",
+                    use_container_width=True,
+                    type="primary"
+                ):
+                    st.session_state.selected_indicator_group = group_name
+                    st.session_state.selected_signals = group_info['signals']
+                    st.session_state.step = 3
+                    st.rerun()
+
+                # 상세 설명은 expander 안에 넣어 숨김
+                with st.expander("Details"):
+                    if group_name == "Long-term Analysis (Monthly)":
+                        st.markdown("### 🔴 Long-term")
+                        st.markdown("**Investment Period:** ██████ (few years)")
+                        st.markdown("**Success Rate:** █████░")
+                        st.markdown("""
+                        **Analysis:** macro trends  
+                        **Purpose:** Value investing and portfolio strategy development  
+                        **Use Case:** Long-term investment, asset allocation, risk management
+                        """)
+                    elif group_name == "Mid-term Analysis (Weekly)":
+                        st.markdown("### 🟡 Mid-term")
+                        st.markdown("**Investment Period:** ████░░ (few months)")
+                        st.markdown("**Success Rate:** █████░")
+                        st.markdown("""
+                        **Analysis:** Trend Analysis  
+                        **Purpose:** Trend confirmation and mid-term investment direction  
+                        **Use Case:** Position entry after confirming weekly uptrend reversal
+                        """)
+                    elif group_name == "Short-term Analysis (Daily)":
+                        st.markdown("### 🔵 Short-term")
+                        st.markdown("**Investment Period:** ██░░░░ (few weeks)")
+                        st.markdown("**Success Rate:** ████░░")
+                        st.markdown("""
+                        **Analysis:** precise timing  
+                        **Purpose:** Quick volatility capture and short-term trading timing  
+                        **Use Case:** Fast entry/exit signals during rapid rise/fall periods
+                        """)
 
 
 def render_step3_chart_display():
