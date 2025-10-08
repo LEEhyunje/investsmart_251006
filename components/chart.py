@@ -267,43 +267,49 @@ def render_stock_chart(
     주식 차트 렌더링 - 시간축 지원 및 캐시된 데이터 사용으로 최적화
     """
     try:
-        with st.spinner("📈 차트를 준비하고 있습니다... 잠시만 기다려주세요."):
-            # 선택된 지표 그룹에 따라 시간축 결정
-            timeframe = "daily"  # 기본값
-            if settings and 'selected_indicator_group' in settings:
-                indicator_group = settings['selected_indicator_group']
-                if "Short-term" in indicator_group:
-                    timeframe = "daily"
-                elif "Mid-term" in indicator_group:
-                    timeframe = "weekly"
-                elif "Long-term" in indicator_group:
-                    timeframe = "monthly"
+        # 프로그레스 바 초기화
+        progress_bar = st.progress(0, text="📈 Preparing chart... Please wait.")
 
-            # 1) 데이터 로드 및 리샘플링
-            signals_data = get_cached_signals_data(symbol, period)
-            signals_data = resample_data_to_timeframe(signals_data, timeframe)
+        # 선택된 지표 그룹에 따라 시간축 결정
+        timeframe = "daily"  # 기본값
+        if settings and 'selected_indicator_group' in settings:
+            indicator_group = settings['selected_indicator_group']
+            if "Short-term" in indicator_group:
+                timeframe = "daily"
+            elif "Mid-term" in indicator_group:
+                timeframe = "weekly"
+            elif "Long-term" in indicator_group:
+                timeframe = "monthly"
+        
+        progress_bar.progress(20, text="Loading data...")
 
-            # 2) 유효성 검사
-            if signals_data.get('error') or not signals_data.get('dates'):
-                st.warning(f"⚠️ {symbol} 종목은 아직 지원하지 않는 종목입니다.")
-                st.info("현재 지원하는 종목: 코스피, 나스닥, TLT, USD/KRW 환율")
-                return
+        # 1) 데이터 로드 및 리샘플링
+        signals_data = get_cached_signals_data(symbol, period)
+        progress_bar.progress(50, text="Resampling data...")
+        signals_data = resample_data_to_timeframe(signals_data, timeframe)
 
+        # 2) 유효성 검사
+        if signals_data.get('error') or not signals_data.get('dates'):
+            st.warning(f"⚠️ Data for {symbol} is not available.")
+            st.info("Currently supported: KOSPI, NASDAQ, TLT, USD/KRW, etc.")
+            progress_bar.empty()
+            return
+        
+        # 차트 제목 표시
         timeframe_names = {
             "daily": "Daily Chart",
             "weekly": "Weekly Chart", 
             "monthly": "Monthly Chart"
         }
         timeframe_display = timeframe_names.get(timeframe, "Daily Chart")
+        st.markdown(f" 📈 {signals_data.get('symbol', symbol)} - {timeframe_display} ")        
 
-        data_count = len(signals_data.get('dates', []))
-        st.markdown(f"######### 📈 {signals_data.get('symbol', symbol)} - {timeframe_display} ")        
-
-        # 차트 생성 (최적화된 렌더링)
-        _create_candlestick_chart(
-            signals_data, 
-            settings
-        )
+        progress_bar.progress(70, text="Creating chart...")
+        # 차트 생성
+        _create_candlestick_chart(signals_data, settings)
+        
+        # 프로그레스 바 제거
+        progress_bar.empty()
         
     except Exception as e:
         logger.error(f"차트 렌더링 실패: {symbol}, {e}")
