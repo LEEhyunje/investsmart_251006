@@ -557,7 +557,7 @@ def _create_candlestick_chart(
                             
                             # 매수 신호 표시 (가로 삼각형) - 최적화된 설정
                             fig.add_trace(
-                                go.Scatter(
+                                go.Scattergl( # WebGL 기반 렌더링으로 변경
                                     x=buy_dates,
                                     y=buy_prices,
                                     mode='markers',
