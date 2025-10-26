@@ -89,7 +89,6 @@ class InvestSmartJSONClient:
             # 4. 모든 캐시에 저장
             self._cache[symbol] = data
             st.session_state.json_data_cache[symbol] = data
-            
             return data
             
         except Exception as e:

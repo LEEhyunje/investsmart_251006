@@ -60,6 +60,11 @@ def render_disclaimer():
             <b>🔒 Disclaimer</b><br>
             - We are not responsible for investment losses from using this service.<br>
             - We recommend thorough review and expert consultation before investing.
+            <br><br>
+            ※ This website is for reference of how email service have worked in the past.
+            <br>
+            ※ Data is updated occasionally, Last updated: 2025-10-26
+            <br>
             </div>
             """, unsafe_allow_html=True)
             
